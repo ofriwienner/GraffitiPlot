@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graffiti-plot"
+version = "0.1.0"
+description = "Interactive matplotlib figures: zoom, pan, curve fitting, SI units, and more"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [
+    { name = "GraffitiPlot contributors" }
+]
+keywords = ["matplotlib", "interactive", "plotting", "curve-fitting", "zoom", "pan"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "matplotlib>=3.5",
+    "numpy>=1.20",
+    "customtkinter>=5.0",
+    "scipy>=1.7",
+]
+
+[project.urls]
+Repository = "https://github.com/ofriwienner/graffiti-plot"
+Documentation = "https://github.com/ofriwienner/graffiti-plot#readme"
+
+[tool.setuptools.packages.find]
+where = ["src"]
