@@ -75,7 +75,6 @@ def _apply_global_modebar(fig):
     fig._menu_grid_state = False
     fig._menu_autoy_state = False
     fig._menu_hover_state = True
-    fig._menu_cursors_state = False
     fig._graffiti_linked_x = False
 
     bbox_style = dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='lightgray', alpha=0.9)
@@ -86,7 +85,7 @@ def _apply_global_modebar(fig):
     btns = {}
     labels = [(" Link X (X) ", 'link'), (" Grid (G) ", 'grid'), (" Auto Y (A) ", 'autoy'),
               (" Hover (H) ", 'hover'), (" Log X (K) ", 'logx'), (" Log Y (L) ", 'logy'),
-              (" Fit (F) ", 'fit'), (" Cursors (C) ", 'cursors')]
+              (" Fit (F) ", 'fit'), (" Clear (C) ", 'clear')]
 
     fig._graffiti_action_map = {}
     for (i, (text, action)) in enumerate(labels):
@@ -119,9 +118,6 @@ def _sync_global_button_visuals(fig):
 
     btns['hover'].set_color('dodgerblue' if fig._menu_hover_state else 'gray')
     btns['hover'].set_fontweight('bold' if fig._menu_hover_state else 'normal')
-
-    btns['cursors'].set_color('dodgerblue' if fig._menu_cursors_state else 'gray')
-    btns['cursors'].set_fontweight('bold' if fig._menu_cursors_state else 'normal')
 
     if fig.axes:
         is_log_x = any(ax.get_xscale() == 'log' for ax in fig.axes)
@@ -169,13 +165,11 @@ def _handle_global_action(fig, action, caller_ax=None):
         if target_ax:
             interactor = getattr(target_ax, '_plotly_interactor', None)
             if interactor: interactor._trigger_fit_window()
-    elif action == 'cursors':
-        fig._menu_cursors_state = not fig._menu_cursors_state
-        if not fig._menu_cursors_state:
-            for ax in fig.axes:
-                interactor = getattr(ax, '_plotly_interactor', None)
-                if interactor and hasattr(interactor, '_scope_clear'):
-                    interactor._scope_clear()
+    elif action == 'clear':
+        for ax in fig.axes:
+            interactor = getattr(ax, '_plotly_interactor', None)
+            if interactor and hasattr(interactor, '_scope_clear'):
+                interactor._scope_clear()
 
     _sync_global_button_visuals(fig)
     fig.canvas.draw_idle()
@@ -297,8 +291,8 @@ class PlotlyInteractivity:
         self._scope_annot.set_visible(False)
         self.fig.canvas.draw_idle()
 
-    def _update_scope_preview(self, x_px, y_px):
-        nearest = self._find_nearest_data_point(x_px, y_px)
+    def _update_scope_preview(self, x_px, y_px, x_data=None):
+        nearest = self._find_nearest_data_point(x_px, y_px, x_data_vertical=x_data)
         if nearest is None:
             self._scope_preview_v.set_visible(False)
             self._scope_preview_h.set_visible(False)
@@ -493,7 +487,8 @@ class PlotlyInteractivity:
         elif key == 'a': _handle_global_action(self.fig, 'autoy', self.ax)
         elif key == 'h': _handle_global_action(self.fig, 'hover', self.ax)
         elif key == 'f': _handle_global_action(self.fig, 'fit', self.ax)
-        elif key == 'c': _handle_global_action(self.fig, 'cursors', self.ax)
+        elif key == 'c': _handle_global_action(self.fig, 'clear', self.ax)
+        elif key == 'escape': _handle_global_action(self.fig, 'clear', self.ax)
 
     def _on_scroll(self, event):
         if event.inaxes != self.ax: return
@@ -521,6 +516,11 @@ class PlotlyInteractivity:
         if leg is not None and leg.contains(event)[0]: return
             
         if event.button == 1 and event.dblclick:
+            # Double-click to reset view: also clear scope cursors so no new cursor is left behind
+            for axis in self.fig.axes:
+                interactor = getattr(axis, '_plotly_interactor', None)
+                if interactor and hasattr(interactor, '_scope_clear'):
+                    interactor._scope_clear()
             axes_to_reset = self.fig.axes if getattr(self.fig, '_graffiti_linked_x', False) else [self.ax]
             for axis in axes_to_reset:
                 interactor = getattr(axis, '_plotly_interactor', None)
@@ -542,10 +542,7 @@ class PlotlyInteractivity:
             return
             
         if event.button == 1:
-            cursors_on = getattr(self.fig, '_menu_cursors_state', False)
-            if cursors_on:
-                self._scope_click_start = (event.xdata, event.ydata, event.x, event.y)
-                return
+            self._scope_click_start = (event.xdata, event.ydata, event.x, event.y)
             if self._toolbar and self._toolbar.mode != '': return
             self._is_dragging = True
             self._start_data, self._start_px = (event.xdata, event.ydata), (event.x, event.y)
@@ -555,30 +552,18 @@ class PlotlyInteractivity:
 
     def _on_motion(self, event):
         hover_enabled = getattr(self.fig, '_menu_hover_state', True)
-        cursors_on = getattr(self.fig, '_menu_cursors_state', False)
 
         if not self._is_dragging and not self._is_panning:
-            if cursors_on and event.inaxes == self.ax:
-                self._update_scope_preview(event.x, event.y)
-                if self._annot.get_visible():
-                    self._annot.set_visible(False)
-                    self.fig.canvas.draw_idle()
-                return
-            elif not cursors_on:
-                for art in (self._scope_preview_v, self._scope_preview_h, self._scope_preview_pt):
-                    if art.get_visible():
-                        art.set_visible(False)
-                        self.fig.canvas.draw_idle()
-                        break
-            if event.inaxes == self.ax and hover_enabled:
-                self._update_hover_tooltip(event)
-            elif not hover_enabled and self._annot.get_visible():
-                self._annot.set_visible(False)
-                self.fig.canvas.draw_idle()
-            elif cursors_on and event.inaxes != self.ax:
+            if event.inaxes == self.ax:
+                self._update_scope_preview(event.x, event.y, getattr(event, 'xdata', None))
+                if hover_enabled:
+                    self._update_hover_tooltip(event)
+            else:
                 self._scope_preview_v.set_visible(False)
                 self._scope_preview_h.set_visible(False)
                 self._scope_preview_pt.set_visible(False)
+                if not hover_enabled and self._annot.get_visible():
+                    self._annot.set_visible(False)
                 self.fig.canvas.draw_idle()
             return
 
@@ -617,29 +602,46 @@ class PlotlyInteractivity:
                 self._zoom_rect.set_bounds(min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
             self.fig.canvas.draw_idle()
 
-    def _find_nearest_data_point(self, x_px, y_px):
+    def _find_nearest_data_point(self, x_px, y_px, x_data_vertical=None):
         if x_px is None or y_px is None:
             return None
 
         min_dist, closest_data, closest_label = float('inf'), None, None
-        
-        for line in self.ax.get_lines():
-            if not line.get_visible():
-                continue
-            label = line.get_label()
-            if label.startswith('_'):
-                continue
-                
-            xdata, ydata = line.get_xdata(), line.get_ydata()
-            if len(xdata) == 0:
-                continue
-            
-            pts = self.ax.transData.transform(np.column_stack((xdata, ydata)))
-            dists = (pts[:, 0] - x_px)**2 + (pts[:, 1] - y_px)**2
-            
-            idx = np.argmin(dists)
-            if dists[idx] < min_dist:
-                min_dist, closest_data, closest_label = dists[idx], (xdata[idx], ydata[idx]), label
+
+        if x_data_vertical is not None:
+            # Snap to point on same x (vertical): for each line take point with x closest to x_data_vertical, then pick by screen distance
+            for line in self.ax.get_lines():
+                if not line.get_visible():
+                    continue
+                label = line.get_label()
+                if label.startswith('_'):
+                    continue
+                xdata = np.asarray(line.get_xdata(), dtype=float)
+                ydata = np.asarray(line.get_ydata(), dtype=float)
+                if len(xdata) == 0:
+                    continue
+                idx = np.argmin(np.abs(xdata - x_data_vertical))
+                x_snap, y_snap = float(xdata[idx]), float(ydata[idx])
+                pt_px = self.ax.transData.transform((x_snap, y_snap))
+                dist_sq = (pt_px[0] - x_px)**2 + (pt_px[1] - y_px)**2
+                if dist_sq < min_dist:
+                    min_dist, closest_data, closest_label = dist_sq, (x_snap, y_snap), label
+        else:
+            # Nearest point by 2D pixel distance (e.g. for hover)
+            for line in self.ax.get_lines():
+                if not line.get_visible():
+                    continue
+                label = line.get_label()
+                if label.startswith('_'):
+                    continue
+                xdata, ydata = line.get_xdata(), line.get_ydata()
+                if len(xdata) == 0:
+                    continue
+                pts = self.ax.transData.transform(np.column_stack((xdata, ydata)))
+                dists = (pts[:, 0] - x_px)**2 + (pts[:, 1] - y_px)**2
+                idx = np.argmin(dists)
+                if dists[idx] < min_dist:
+                    min_dist, closest_data, closest_label = dists[idx], (xdata[idx], ydata[idx]), label
 
         if closest_data is None:
             return None
@@ -678,13 +680,18 @@ class PlotlyInteractivity:
 
         if getattr(self, '_scope_click_start', None) is not None and event.button == 1:
             xdata, ydata, x_px, y_px = self._scope_click_start
-            if getattr(self.fig, '_menu_cursors_state', False) and event.x is not None and event.y is not None and abs(event.x - x_px) < 5 and abs(event.y - y_px) < 5:
-                nearest = self._find_nearest_data_point(event.x, event.y)
+            small_move = event.x is not None and event.y is not None and abs(event.x - x_px) < 5 and abs(event.y - y_px) < 5
+            self._scope_click_start = None
+            if small_move:
+                x_data = getattr(event, 'xdata', None)
+                nearest = self._find_nearest_data_point(event.x, event.y, x_data_vertical=x_data)
                 if nearest is not None:
                     closest_data, _, _ = nearest
                     self._scope_place_point(closest_data[0], closest_data[1])
-            self._scope_click_start = None
-            return
+                self._is_dragging = False
+                self._zoom_rect.set_visible(False)
+                self.fig.canvas.draw_idle()
+                return
 
         if not self._is_dragging: return
         self._is_dragging = False
