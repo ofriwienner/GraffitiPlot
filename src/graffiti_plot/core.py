@@ -1026,6 +1026,30 @@ class PlotlyInteractivity:
 
 
 # =========================================================================
+# ENABLE / DISABLE TOGGLE
+# =========================================================================
+_ENABLED = True  # default: on
+
+def enable():
+    """Re-enable graffiti-plot interactivity for all subsequently created figures."""
+    global _ENABLED
+    _ENABLED = True
+
+def disable():
+    """Disable graffiti-plot interactivity for all subsequently created figures.
+
+    After calling this, new figures behave like plain matplotlib (no modebar,
+    no zoom history, no cursor tools, etc.).  Figures already open keep
+    whatever state they had.  Call ``enable()`` to turn it back on.
+    """
+    global _ENABLED
+    _ENABLED = False
+
+def is_enabled():
+    """Return True if graffiti-plot interactivity is currently enabled."""
+    return _ENABLED
+
+# =========================================================================
 # GLOBAL MONKEY-PATCH ACTIVATION
 # =========================================================================
 _original_add_subplot = mfigure.Figure.add_subplot
@@ -1033,6 +1057,7 @@ _original_add_axes    = mfigure.Figure.add_axes
 
 def _patched_add_subplot(self, *args, **kwargs):
     ax = _original_add_subplot(self, *args, **kwargs)
+    if not _ENABLED: return ax
     if getattr(self, '_is_graffiti_ui', False): return ax
     if not hasattr(ax, '_plotly_interactor'):
         ax._plotly_interactor = PlotlyInteractivity(ax)
@@ -1042,6 +1067,7 @@ def _patched_add_subplot(self, *args, **kwargs):
 
 def _patched_add_axes(self, *args, **kwargs):
     ax = _original_add_axes(self, *args, **kwargs)
+    if not _ENABLED: return ax
     if getattr(self, '_is_graffiti_ui', False): return ax
     if not hasattr(ax, '_plotly_interactor'):
         ax._plotly_interactor = PlotlyInteractivity(ax)

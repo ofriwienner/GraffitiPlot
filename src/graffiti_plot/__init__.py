@@ -25,6 +25,6 @@ __version__ = "0.1.0"
 from . import core
 
 # Public API
-from .core import set_footer, CONFIG
+from .core import set_footer, CONFIG, enable, disable, is_enabled
 
-__all__ = ["__version__", "set_footer", "CONFIG"]
+__all__ = ["__version__", "set_footer", "CONFIG", "enable", "disable", "is_enabled"]
