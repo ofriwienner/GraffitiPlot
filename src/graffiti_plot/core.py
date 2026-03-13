@@ -44,8 +44,8 @@ _LEGEND_PICK_RADIUS_PX    = 5      # Pick radius for legend handles
 _SCOPE_CLICK_TOLERANCE_PX = 5      # Max pixel movement to count as a click vs drag
 _ZOOM_AXIS_RATIO           = 2.5   # Ratio threshold for H/V-only zoom detection
 _ZOOM_PIXEL_MIN            = 10    # Minimum drag pixels before H/V mode locks
-_BOTTOM_MARGIN_MIN         = 0.20  # Minimum bottom margin to avoid modebar overlap
-_MODEBAR_Y_POS             = 0.02  # Y position of modebar buttons
+_BOTTOM_MARGIN_MIN         = 0.13  # Minimum bottom margin to keep axis labels above modebar
+_MODEBAR_Y_POS             = 0.005 # Y position of modebar buttons (below footer)
 _SCROLL_ZOOM_IN_FACTOR     = 0.9   # Scale factor when scrolling up (zoom in)
 _SCROLL_ZOOM_OUT_FACTOR    = 1.1   # Scale factor when scrolling down (zoom out)
 _AUTOY_PAD_FRACTION        = 0.05  # Padding fraction for auto-Y scaling
@@ -76,7 +76,7 @@ def _apply_footer(fig):
         final_text = f"{CONFIG['footer_prefix']}{now_str}" if CONFIG['footer_prefix'] else now_str
 
     fig._graffiti_footer = fig.text(
-        0.99, 0.01, final_text,
+        0.99, 0.03, final_text,
         color='gray', fontsize=8,
         ha='right', va='bottom', alpha=0.7, zorder=100
     )
@@ -714,6 +714,15 @@ class PlotlyInteractivity:
             self._original_xlim = self.ax.get_xlim()
             self._original_ylim = self.ax.get_ylim()
             self._limits_captured = True
+
+        # Re-enforce bottom margin if tight_layout (or other calls) overrode it.
+        # The flag prevents infinite recursion: subplots_adjust → draw → _on_draw → …
+        if (not getattr(self.fig, '_graffiti_adjusting', False)
+                and self.fig.subplotpars.bottom < _BOTTOM_MARGIN_MIN):
+            self.fig._graffiti_adjusting = True
+            self.fig.subplots_adjust(bottom=_BOTTOM_MARGIN_MIN)
+            self.fig._graffiti_adjusting = False
+            self.fig.canvas.draw_idle()
 
         leg = self.ax.get_legend()
         if leg and getattr(leg, '_loc', None) == 0:
