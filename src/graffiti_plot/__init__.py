@@ -25,7 +25,7 @@ __version__ = "0.1.0"
 from . import core
 
 # Public API
-from .core import set_footer, CONFIG
+from .core import set_footer, CONFIG, enable, disable, is_enabled
 from .fits import register_fit, STANDARD_MODELS
 
-__all__ = ["__version__", "set_footer", "CONFIG", "register_fit", "STANDARD_MODELS"]
+__all__ = ["__version__", "set_footer", "CONFIG", "enable", "disable", "is_enabled", "register_fit", "STANDARD_MODELS"]
