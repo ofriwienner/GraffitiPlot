@@ -879,16 +879,17 @@ class PlotlyInteractivity:
             x_min_ax, x_max_ax = sorted(self.ax.get_xlim())
             y_min_ax, y_max_ax = sorted(self.ax.get_ylim())
 
-            if px_dx > _ZOOM_AXIS_RATIO * px_dy and px_dx > _ZOOM_PIXEL_MIN:
+            snap_x = px_dx >= _ZOOM_FULL_RATIO * bbox.width
+            snap_y = px_dy >= _ZOOM_FULL_RATIO * bbox.height
+
+            if not snap_x and not snap_y and px_dx > _ZOOM_AXIS_RATIO * px_dy and px_dx > _ZOOM_PIXEL_MIN:
                 self._zoom_mode = 'h'
                 self._zoom_rect.set_bounds(min(x0, x1), y_min_ax, abs(x1 - x0), y_max_ax - y_min_ax)
-            elif px_dy > _ZOOM_AXIS_RATIO * px_dx and px_dy > _ZOOM_PIXEL_MIN:
+            elif not snap_x and not snap_y and px_dy > _ZOOM_AXIS_RATIO * px_dx and px_dy > _ZOOM_PIXEL_MIN:
                 self._zoom_mode = 'v'
                 self._zoom_rect.set_bounds(x_min_ax, min(y0, y1), x_max_ax - x_min_ax, abs(y1 - y0))
             else:
                 self._zoom_mode = 'box'
-                snap_x = px_dx >= _ZOOM_FULL_RATIO * bbox.width
-                snap_y = px_dy >= _ZOOM_FULL_RATIO * bbox.height
                 rx = x_min_ax if snap_x else min(x0, x1)
                 rw = (x_max_ax - x_min_ax) if snap_x else abs(x1 - x0)
                 ry = y_min_ax if snap_y else min(y0, y1)
