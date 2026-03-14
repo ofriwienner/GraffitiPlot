@@ -353,7 +353,8 @@ class PlotlyInteractivity:
         self.ax = ax
         self.fig = ax.figure
         self._legend_mapping = {}
-        self._cids = []
+        self._cids = []       # all persistent event handler ids
+        self._pick_cids = []  # pick-event ids reconnected on every ax.legend() call
 
         self._si_unit_x = None
         self._si_unit_y = None
@@ -646,10 +647,11 @@ class PlotlyInteractivity:
         leg = self._original_legend(*args, **kwargs)
         if leg is None: return leg
 
-        # Disconnect previous legend pick handlers
-        for cid in self._cids:
+        # Only disconnect the previous pick handler — never touch the main _cids
+        # (which hold mouse/keyboard/draw/scroll events).
+        for cid in self._pick_cids:
             self.fig.canvas.mpl_disconnect(cid)
-        self._cids.clear()
+        self._pick_cids.clear()
         self._legend_mapping.clear()
 
         handles, labels = self.ax.get_legend_handles_labels()
@@ -660,7 +662,7 @@ class PlotlyInteractivity:
             leg_handle.set_pickradius(_LEGEND_PICK_RADIUS_PX)
             self._legend_mapping[leg_handle] = (orig_artist, label)
 
-        self._cids.append(self.fig.canvas.mpl_connect('pick_event', self._on_pick))
+        self._pick_cids.append(self.fig.canvas.mpl_connect('pick_event', self._on_pick))
         return leg
 
     def _on_pick(self, event):
@@ -708,6 +710,9 @@ class PlotlyInteractivity:
         for cid in self._cids:
             self.fig.canvas.mpl_disconnect(cid)
         self._cids.clear()
+        for cid in self._pick_cids:
+            self.fig.canvas.mpl_disconnect(cid)
+        self._pick_cids.clear()
 
     def _on_draw(self, event):
         if not self._limits_captured:
