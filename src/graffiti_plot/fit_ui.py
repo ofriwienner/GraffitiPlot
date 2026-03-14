@@ -31,9 +31,9 @@ class FitWindow(ctk.CTkToplevel):
         self.grid_rowconfigure(0, weight=1)
 
         # -----------------------------------
-        # LEFT SIDEBAR
+        # LEFT SIDEBAR (scrollable to handle many models)
         # -----------------------------------
-        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
+        self.sidebar = ctk.CTkScrollableFrame(self, width=220, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
 
         # Trace Selection
@@ -65,10 +65,11 @@ class FitWindow(ctk.CTkToplevel):
             rb.configure(text_color=data['color'])
             rb.pack(pady=5, padx=20, anchor="w")
 
-        # Model Selection
+        # Model Selection (hidden models are filtered out)
         ctk.CTkLabel(self.sidebar, text="2. Select Model", font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(25, 10), padx=20, anchor="w")
         self.model_var = ctk.StringVar(value="Gaussian")
-        for m in list(self.models.keys()) + ["Custom..."]:
+        visible_models = [m for m, entry in self.models.items() if not entry[4]]
+        for m in visible_models + ["Custom..."]:
             rb = ctk.CTkRadioButton(self.sidebar, text=m, variable=self.model_var, value=m, command=self._on_model_change)
             rb.pack(pady=5, padx=20, anchor="w")
 
@@ -121,7 +122,7 @@ class FitWindow(ctk.CTkToplevel):
     def _on_model_change(self):
         m = self.model_var.get()
         if m != "Custom...":
-            _, _, defaults, eq_str = self.models[m]
+            _, _, defaults, eq_str, _ = self.models[m]
             self.entry_guess.delete(0, 'end')
             self.entry_guess.insert(0, ", ".join(map(str, defaults)))
             self.entry_eq.delete(0, 'end')
@@ -183,7 +184,7 @@ class FitWindow(ctk.CTkToplevel):
             func = custom_func
             param_names = ['a', 'b', 'c', 'd', 'e'][:len(p0)] if p0 else ['a', 'b', 'c']
         else:
-            func, param_names, default_p0, _ = self.models[model_name]
+            func, param_names, default_p0, _, _ = self.models[model_name]
             if not p0: p0 = default_p0
             
         try:
