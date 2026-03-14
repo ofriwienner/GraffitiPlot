@@ -26,5 +26,6 @@ from . import core
 
 # Public API
 from .core import set_footer, CONFIG, enable, disable, is_enabled
+from .fits import register_fit, STANDARD_MODELS
 
-__all__ = ["__version__", "set_footer", "CONFIG", "enable", "disable", "is_enabled"]
+__all__ = ["__version__", "set_footer", "CONFIG", "enable", "disable", "is_enabled", "register_fit", "STANDARD_MODELS"]
