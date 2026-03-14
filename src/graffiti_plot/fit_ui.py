@@ -39,7 +39,28 @@ class FitWindow(ctk.CTkToplevel):
         # Trace Selection
         ctk.CTkLabel(self.sidebar, text="1. Select Trace", font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(20, 10), padx=20, anchor="w")
         self.trace_var = ctk.StringVar(value=list(self.traces.keys())[0])
+
+        # Group traces visually by plot number if present in label (e.g. "... (Plot 1)")
+        prev_plot = None
         for label, data in self.traces.items():
+            plot_id = None
+            if label.endswith(")") and " (Plot " in label:
+                base, rest = label.rsplit(" (Plot ", 1)
+                if rest.endswith(")"):
+                    num_str = rest[:-1]
+                    if num_str.isdigit():
+                        plot_id = int(num_str)
+
+            if plot_id is not None and plot_id != prev_plot:
+                sep_text = f"Plot {plot_id}"
+                ctk.CTkLabel(
+                    self.sidebar,
+                    text=sep_text,
+                    font=ctk.CTkFont(size=13, weight="bold"),
+                    text_color="gray"
+                ).pack(pady=(12, 2) if prev_plot is not None else (4, 2), padx=20, anchor="w")
+                prev_plot = plot_id
+
             rb = ctk.CTkRadioButton(self.sidebar, text=label, variable=self.trace_var, value=label)
             rb.configure(text_color=data['color'])
             rb.pack(pady=5, padx=20, anchor="w")
@@ -146,6 +167,7 @@ class FitWindow(ctk.CTkToplevel):
         
         data = self.traces[trace_name]
         x_data, y_data, line_color = data['x'], data['y'], data['color']
+        target_ax = data.get('ax')
         
         try:
             # FIX: Feed all inputs through our new SI parser
@@ -180,7 +202,7 @@ class FitWindow(ctk.CTkToplevel):
         
         self.lbl_result.configure(text=param_str, text_color="#00b548")
         
-        self.on_fit_success(x_fit, y_fit, line_color, fit_label)
+        self.on_fit_success(x_fit, y_fit, line_color, fit_label, target_ax)
         
         p0_formatted = ", ".join([f"{v:.5g}" for v in p0])
         unpack_str = ", ".join(param_names)

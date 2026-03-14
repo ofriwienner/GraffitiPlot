@@ -80,12 +80,12 @@ def _apply_global_modebar(fig):
     bbox_style = dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='lightgray', alpha=0.9)
     # FIX: Pushed buttons further down the screen
     y_pos = 0.02  
-    x_pos = np.linspace(0.1, 0.9, 8)
+    x_pos = np.linspace(0.1, 0.9, 9)
 
     btns = {}
     labels = [(" Link X (X) ", 'link'), (" Grid (G) ", 'grid'), (" Auto Y (A) ", 'autoy'),
               (" Hover (H) ", 'hover'), (" Log X (K) ", 'logx'), (" Log Y (L) ", 'logy'),
-              (" Fit (F) ", 'fit'), (" Clear (C) ", 'clear')]
+              (" Fit (F) ", 'fit'), (" Out (O) ", 'out'), (" Clear (C) ", 'clear')]
 
     fig._graffiti_action_map = {}
     for (i, (text, action)) in enumerate(labels):
@@ -165,6 +165,15 @@ def _handle_global_action(fig, action, caller_ax=None):
         if target_ax:
             interactor = getattr(target_ax, '_plotly_interactor', None)
             if interactor: interactor._trigger_fit_window()
+    elif action == 'out':
+        # Full zoom out: show all data (relim + autoscale), even when plot was drawn with xlim
+        for ax in fig.axes:
+            interactor = getattr(ax, '_plotly_interactor', None)
+            if interactor and hasattr(interactor, '_scope_clear'):
+                interactor._scope_clear()
+        for ax in fig.axes:
+            ax.relim()
+            ax.autoscale()
     elif action == 'clear':
         for ax in fig.axes:
             interactor = getattr(ax, '_plotly_interactor', None)
@@ -389,13 +398,11 @@ class PlotlyInteractivity:
             print("[graffiti] ERROR: No valid data in view to fit. Please zoom out.")
             return
 
-        def on_success(x_fit, y_fit, color, label):
-            target_ax = self.fig.axes[0]
-            for data in traces.values():
-                if data['color'] == color:
-                    target_ax = data['ax']
-                    break
-            
+        def on_success(x_fit, y_fit, color, label, target_ax):
+            if target_ax is None:
+                target_ax = self.fig.axes[0] if self.fig.axes else None
+            if target_ax is None:
+                return
             target_ax.plot(x_fit, y_fit, linestyle='--', color=color, linewidth=2, alpha=0.85, label=label)
             target_ax.legend()
             self.fig.canvas.draw_idle()
@@ -487,6 +494,7 @@ class PlotlyInteractivity:
         elif key == 'a': _handle_global_action(self.fig, 'autoy', self.ax)
         elif key == 'h': _handle_global_action(self.fig, 'hover', self.ax)
         elif key == 'f': _handle_global_action(self.fig, 'fit', self.ax)
+        elif key == 'o': _handle_global_action(self.fig, 'out')
         elif key == 'c': _handle_global_action(self.fig, 'clear', self.ax)
         elif key == 'escape': _handle_global_action(self.fig, 'clear', self.ax)
 
