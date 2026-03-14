@@ -3,12 +3,20 @@ import numpy as np
 # This empty dictionary will be automatically filled by the decorator
 STANDARD_MODELS = {}
 
-def register_fit(name, param_names, default_guesses, equation_string):
+def register_fit(name, param_names, default_guesses, equation_string, hidden=False):
     """
     Decorator to automatically register a new mathematical model into the Fit UI.
+
+    Args:
+        name: Display name shown in the UI.
+        param_names: List of parameter symbol names.
+        default_guesses: Initial parameter values for fitting.
+        equation_string: Human-readable equation formula.
+        hidden: If True, the model is registered but will not appear in the UI.
+                Useful for internal/helper functions. Defaults to False.
     """
     def decorator(func):
-        STANDARD_MODELS[name] = (func, param_names, default_guesses, equation_string)
+        STANDARD_MODELS[name] = (func, param_names, default_guesses, equation_string, hidden)
         return func
     return decorator
 
