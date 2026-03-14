@@ -39,6 +39,7 @@ for kmap, keys in [
 # =========================================================================
 # CONSTANTS
 # =========================================================================
+_HOVER_PIXEL_THRESHOLD_ON = False   # Whether hover tooltips distance threshold should be enabled
 _HOVER_PIXEL_THRESHOLD_SQ = 225    # Max pixel² distance for hover tooltip
 _LEGEND_PICK_RADIUS_PX    = 5      # Pick radius for legend handles
 _SCOPE_CLICK_TOLERANCE_PX = 5      # Max pixel movement to count as a click vs drag
@@ -945,7 +946,7 @@ class PlotlyInteractivity:
         else:
             closest_data, closest_label, min_dist = None, None, float('inf')
 
-        if closest_data is not None and min_dist < _HOVER_PIXEL_THRESHOLD_SQ:
+        if closest_data is not None and (not _HOVER_PIXEL_THRESHOLD_ON or min_dist < _HOVER_PIXEL_THRESHOLD_SQ):
             x_str = self._format_si(closest_data[0], self._si_unit_x)
             y_str = self._format_si(closest_data[1], self._si_unit_y)
             new_text = f"{closest_label}\nX: {x_str}\nY: {y_str}"
