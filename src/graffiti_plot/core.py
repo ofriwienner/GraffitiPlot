@@ -39,11 +39,13 @@ for kmap, keys in [
 # =========================================================================
 # CONSTANTS
 # =========================================================================
+_HOVER_PIXEL_THRESHOLD_ON = False   # Whether hover tooltips distance threshold should be enabled
 _HOVER_PIXEL_THRESHOLD_SQ = 225    # Max pixel² distance for hover tooltip
 _LEGEND_PICK_RADIUS_PX    = 5      # Pick radius for legend handles
 _SCOPE_CLICK_TOLERANCE_PX = 5      # Max pixel movement to count as a click vs drag
 _ZOOM_AXIS_RATIO           = 2.5   # Ratio threshold for H/V-only zoom detection
 _ZOOM_PIXEL_MIN            = 10    # Minimum drag pixels before H/V mode locks
+_ZOOM_FULL_RATIO           = 0.7   # Fraction of axis covered before snapping box to full extent
 _BOTTOM_MARGIN_MIN         = 0.13  # Minimum bottom margin to keep axis labels above modebar
 _MODEBAR_Y_POS             = 0.005 # Y position of modebar buttons (below footer)
 _SCROLL_ZOOM_IN_FACTOR     = 0.9   # Scale factor when scrolling up (zoom in)
@@ -878,15 +880,22 @@ class PlotlyInteractivity:
             x_min_ax, x_max_ax = sorted(self.ax.get_xlim())
             y_min_ax, y_max_ax = sorted(self.ax.get_ylim())
 
-            if px_dx > _ZOOM_AXIS_RATIO * px_dy and px_dx > _ZOOM_PIXEL_MIN:
+            snap_x = px_dx >= _ZOOM_FULL_RATIO * bbox.width
+            snap_y = px_dy >= _ZOOM_FULL_RATIO * bbox.height
+
+            if not snap_x and not snap_y and px_dx > _ZOOM_AXIS_RATIO * px_dy and px_dx > _ZOOM_PIXEL_MIN:
                 self._zoom_mode = 'h'
                 self._zoom_rect.set_bounds(min(x0, x1), y_min_ax, abs(x1 - x0), y_max_ax - y_min_ax)
-            elif px_dy > _ZOOM_AXIS_RATIO * px_dx and px_dy > _ZOOM_PIXEL_MIN:
+            elif not snap_x and not snap_y and px_dy > _ZOOM_AXIS_RATIO * px_dx and px_dy > _ZOOM_PIXEL_MIN:
                 self._zoom_mode = 'v'
                 self._zoom_rect.set_bounds(x_min_ax, min(y0, y1), x_max_ax - x_min_ax, abs(y1 - y0))
             else:
                 self._zoom_mode = 'box'
-                self._zoom_rect.set_bounds(min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
+                rx = x_min_ax if snap_x else min(x0, x1)
+                rw = (x_max_ax - x_min_ax) if snap_x else abs(x1 - x0)
+                ry = y_min_ax if snap_y else min(y0, y1)
+                rh = (y_max_ax - y_min_ax) if snap_y else abs(y1 - y0)
+                self._zoom_rect.set_bounds(rx, ry, rw, rh)
             self.fig.canvas.draw_idle()
 
     def _find_nearest_data_point(self, x_px, y_px, x_data_vertical=None):
@@ -929,7 +938,7 @@ class PlotlyInteractivity:
 
     def _update_hover_tooltip(self, event):
         """Show an annotation near the nearest data point when within pixel threshold."""
-        result = self._find_nearest_data_point(event.x, event.y)
+        result = self._find_nearest_data_point(event.x, event.y, x_data_vertical=getattr(event, 'xdata', None))
         needs_redraw = False
 
         if result is not None:
@@ -937,7 +946,7 @@ class PlotlyInteractivity:
         else:
             closest_data, closest_label, min_dist = None, None, float('inf')
 
-        if closest_data is not None and min_dist < _HOVER_PIXEL_THRESHOLD_SQ:
+        if closest_data is not None and (not _HOVER_PIXEL_THRESHOLD_ON or min_dist < _HOVER_PIXEL_THRESHOLD_SQ):
             x_str = self._format_si(closest_data[0], self._si_unit_x)
             y_str = self._format_si(closest_data[1], self._si_unit_y)
             new_text = f"{closest_label}\nX: {x_str}\nY: {y_str}"
@@ -1009,6 +1018,12 @@ class PlotlyInteractivity:
         elif self._zoom_mode == 'v':
             self.ax.set_ylim(new_ylim)
         else:
+            px_dx = abs(x_px - self._start_px[0])
+            px_dy = abs(y_px - self._start_px[1])
+            if px_dx >= _ZOOM_FULL_RATIO * bbox.width:
+                new_xlim = sorted(self.ax.get_xlim())
+            if px_dy >= _ZOOM_FULL_RATIO * bbox.height:
+                new_ylim = sorted(self.ax.get_ylim())
             self._apply_xlim(new_xlim)
             self.ax.set_ylim(new_ylim)
         self.fig.canvas.draw_idle()
