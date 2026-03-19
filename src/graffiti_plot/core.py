@@ -1111,3 +1111,40 @@ mpl.axes.Axes.set_si_units = (
     getattr(self, '_plotly_interactor').set_si_units(x, y)
     if hasattr(self, '_plotly_interactor') else None
 )
+
+# -------------------------------------------------------------------------
+# Savefig wrapper: hide graffiti UI buttons in exported images
+# -------------------------------------------------------------------------
+_original_savefig = mfigure.Figure.savefig
+
+def _patched_savefig(self, *args, **kwargs):
+    # Hide the modebar buttons (fig.text artists) during save so they don't
+    # appear in the output image (and so bbox_inches='tight' ignores them).
+    btns = getattr(self, '_graffiti_buttons_refs', None)
+    if not btns:
+        return _original_savefig(self, *args, **kwargs)
+
+    # Store current visibilities to restore even if savefig fails.
+    old_vis = {}
+    for _, btn in btns.items():
+        try:
+            old_vis[btn] = btn.get_visible()
+            btn.set_visible(False)
+        except Exception:
+            # If an artist doesn't support the expected API, just skip it.
+            pass
+
+    try:
+        # Mark for debugging/testing (non-public).
+        old_hidden_flag = getattr(self, '_graffiti_modebar_hidden_for_save', False)
+        setattr(self, '_graffiti_modebar_hidden_for_save', True)
+        return _original_savefig(self, *args, **kwargs)
+    finally:
+        for btn, vis in old_vis.items():
+            try:
+                btn.set_visible(vis)
+            except Exception:
+                pass
+        setattr(self, '_graffiti_modebar_hidden_for_save', old_hidden_flag)
+
+mfigure.Figure.savefig = _patched_savefig
