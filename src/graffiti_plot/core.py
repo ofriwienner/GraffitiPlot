@@ -128,6 +128,7 @@ def _apply_global_modebar(fig):
         (" → (]) ", 'fwd'),
         (" Fit (F) ", 'fit'),
         (" Clear (C) ", 'clear'),
+        (" Save (S) ", 'save'),
     ]
     x_positions = np.linspace(0.12, 0.88, len(centre_labels))
     for (text, action), x in zip(centre_labels, x_positions):
@@ -254,6 +255,11 @@ def _handle_global_action(fig, action, caller_ax=None):
 
     elif action == 'export':
         _export_csv(fig)
+        return  # skip redraw; file dialog handles it
+
+    elif action == 'save':
+        from .save_load import _save_with_dialog
+        _save_with_dialog(fig)
         return  # skip redraw; file dialog handles it
 
     elif action == 'help':
@@ -770,6 +776,7 @@ class PlotlyInteractivity:
         elif key == 'escape': _handle_global_action(self.fig, 'clear', self.ax)
         elif key == '[':      _handle_global_action(self.fig, 'back',  self.ax)
         elif key == ']':      _handle_global_action(self.fig, 'fwd',   self.ax)
+        elif key == 's':      _handle_global_action(self.fig, 'save',  self.ax)
 
     def _on_scroll(self, event):
         if event.inaxes != self.ax: return
