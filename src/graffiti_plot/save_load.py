@@ -219,13 +219,31 @@ def _serialize_axes(ax, index: int, embed_data: bool,
 
     series = []
     s_idx = 0
+
+    # Line2D series (ax.plot, ax.step, errorbar main line, etc.)
     for line in ax.get_lines():
-        label = line.get_label()
-        if label.startswith("_"):  # skip internal matplotlib / graffiti lines
+        if line.get_label().startswith("_"):  # skip internal matplotlib / graffiti lines
             continue
         s = _serialize_line(line, index, s_idx, embed_data, ext_arrays, df_ref, df_col_map)
         series.append(s)
         s_idx += 1
+
+    # BarContainers (ax.bar, ax.barh, ax.hist)
+    import matplotlib.container as _mcontainer
+    for container in ax.containers:
+        if not isinstance(container, _mcontainer.BarContainer):
+            continue
+        s = _serialize_bars(container)
+        if s is not None:
+            series.append(s)
+
+    # Collections (ax.scatter, ax.fill_between, etc.)
+    import matplotlib.collections as _mcollections
+    for collection in ax.collections:
+        if isinstance(collection, _mcollections.PathCollection):
+            s = _serialize_scatter(collection)
+            if s is not None:
+                series.append(s)
 
     return {
         "index": index,
@@ -284,6 +302,7 @@ def _serialize_line(line, ax_idx: int, s_idx: int, embed_data: bool,
         }
 
     return {
+        "type":       "line",
         "label":      line.get_label(),
         "color":      line.get_color(),
         "linewidth":  float(line.get_linewidth()),
@@ -293,6 +312,140 @@ def _serialize_line(line, ax_idx: int, s_idx: int, embed_data: bool,
         "alpha":      float(alpha) if alpha is not None else None,
         "visible":    bool(line.get_visible()),
         "data":       data_block,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Bar / histogram serialization
+# ---------------------------------------------------------------------------
+
+def _get_bar_label(container) -> str | None:
+    """Return the user-visible label for a BarContainer.
+
+    ax.bar() puts the label on the container; ax.hist() puts it on
+    patches[0] and gives the container an internal '_…' name.
+    Returns None only when both are internal (skip unlabeled containers).
+    """
+    c_label = container.get_label()
+    if not c_label.startswith("_"):
+        return c_label
+    # ax.hist()-style: label on first patch
+    if container.patches:
+        p_label = container.patches[0].get_label()
+        if not p_label.startswith("_"):
+            return p_label
+    return None  # truly unlabeled – skip
+
+
+def _color_to_str(rgba) -> str:
+    """Convert an RGBA array (0-1 floats) to a hex string; 'none' if transparent."""
+    import matplotlib.colors as mcolors
+    arr = np.asarray(rgba, dtype=float)
+    if arr.ndim > 1:
+        arr = arr[0]
+    if arr.shape and len(arr) == 4 and arr[3] == 0.0:
+        return "none"
+    return mcolors.to_hex(arr, keep_alpha=False)
+
+
+def _serialize_bars(container) -> dict | None:
+    """Serialize a BarContainer (from ax.bar() or ax.hist())."""
+    label = _get_bar_label(container)
+    if label is None:
+        return None
+
+    patches = container.patches
+    if not patches:
+        return None
+
+    lefts   = [p.get_x()      for p in patches]
+    heights = [p.get_height() for p in patches]
+    widths  = [p.get_width()  for p in patches]
+    bottoms = [p.get_y()      for p in patches]
+
+    # Colors: single string if uniform, list if per-bar
+    fcs = [_color_to_str(p.get_facecolor()) for p in patches]
+    facecolors: str | list = fcs[0] if len(set(fcs)) == 1 else fcs
+
+    ec      = _color_to_str(patches[0].get_edgecolor())
+    lw      = float(patches[0].get_linewidth())
+    alpha   = patches[0].get_alpha()
+    visible = bool(patches[0].get_visible())
+
+    return {
+        "type":       "bars",
+        "label":      label,
+        "lefts":      lefts,
+        "heights":    _safe_tolist(np.array(heights)),
+        "widths":     widths,
+        "bottoms":    _safe_tolist(np.array(bottoms)),
+        "facecolors": facecolors,
+        "edgecolor":  ec,
+        "linewidth":  lw,
+        "alpha":      float(alpha) if alpha is not None else None,
+        "visible":    visible,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Scatter serialization
+# ---------------------------------------------------------------------------
+
+def _serialize_scatter(collection) -> dict | None:
+    """Serialize a PathCollection (from ax.scatter())."""
+    import matplotlib.collections as mcollections
+    if not isinstance(collection, mcollections.PathCollection):
+        return None
+
+    label = collection.get_label()
+    if label.startswith("_"):
+        return None
+
+    offsets = collection.get_offsets()           # Nx2 masked array
+    xy = np.asarray(offsets.data, dtype=float)
+    x  = _safe_tolist(xy[:, 0])
+    y  = _safe_tolist(xy[:, 1])
+
+    # Sizes: single value or per-point
+    sizes_arr = collection.get_sizes()
+    if len(sizes_arr) == 0:
+        sizes = None
+    elif len(sizes_arr) == 1:
+        sizes = float(sizes_arr[0])
+    else:
+        sizes = sizes_arr.tolist()
+
+    # Face colors: single or per-point
+    fcs = collection.get_facecolors()
+    if len(fcs) == 0:
+        facecolor: str | list = "none"
+    elif len(fcs) == 1:
+        facecolor = _color_to_str(fcs[0])
+    else:
+        facecolor = [_color_to_str(c) for c in fcs]
+
+    # Edge colors
+    ecs = collection.get_edgecolors()
+    if len(ecs) == 0:
+        edgecolor: str | list = "none"
+    elif len(ecs) == 1:
+        edgecolor = _color_to_str(ecs[0])
+    else:
+        edgecolor = [_color_to_str(c) for c in ecs]
+
+    alpha   = collection.get_alpha()
+    visible = bool(collection.get_visible())
+
+    return {
+        "type":      "scatter",
+        "label":     label,
+        "x":         x,
+        "y":         y,
+        "sizes":     sizes,
+        "facecolor": facecolor,
+        "edgecolor": edgecolor,
+        "alpha":     float(alpha) if alpha is not None else None,
+        "visible":   visible,
     }
 
 
@@ -484,25 +637,15 @@ def _load_series_xy(blk: dict, ext_data) -> tuple[np.ndarray, np.ndarray]:
 def _restore_axes(ax, data: dict, ext_data):
     """Recreate all series and styling for one axes."""
     for series in data.get("series", []):
-        x, y = _load_series_xy(series["data"], ext_data)
+        stype = series.get("type", "line")  # default to "line" for old files
 
-        kwargs = {
-            "label":     series.get("label"),
-            "color":     series.get("color"),
-            "linewidth": series.get("linewidth"),
-            "linestyle": series.get("linestyle"),
-            "markersize": series.get("markersize"),
-            "visible":   series.get("visible", True),
-        }
-        marker = series.get("marker", "None")
-        if marker and marker not in ("None", "none"):
-            kwargs["marker"] = marker
-
-        alpha = series.get("alpha")
-        if alpha is not None:
-            kwargs["alpha"] = alpha
-
-        ax.plot(x, y, **kwargs)
+        if stype == "line":
+            _restore_line(ax, series, ext_data)
+        elif stype == "bars":
+            _restore_bars(ax, series)
+        elif stype == "scatter":
+            _restore_scatter(ax, series)
+        # unknown types silently skipped (forward-compat)
 
     ax.set_title(data.get("title", ""))
     ax.set_xlabel(data.get("xlabel", ""))
@@ -529,6 +672,90 @@ def _restore_axes(ax, data: dict, ext_data):
     legend_data = data.get("legend")
     if legend_data and legend_data.get("visible"):
         ax.legend(loc=legend_data.get("loc", 0))
+
+
+def _restore_line(ax, series: dict, ext_data):
+    x, y = _load_series_xy(series["data"], ext_data)
+
+    kwargs = {
+        "label":      series.get("label"),
+        "color":      series.get("color"),
+        "linewidth":  series.get("linewidth"),
+        "linestyle":  series.get("linestyle"),
+        "markersize": series.get("markersize"),
+        "visible":    series.get("visible", True),
+    }
+    marker = series.get("marker", "None")
+    if marker and marker not in ("None", "none"):
+        kwargs["marker"] = marker
+
+    alpha = series.get("alpha")
+    if alpha is not None:
+        kwargs["alpha"] = alpha
+
+    ax.plot(x, y, **kwargs)
+
+
+def _restore_bars(ax, series: dict):
+    lefts   = series["lefts"]
+    heights = np.array([v if v is not None else np.nan for v in series["heights"]])
+    widths  = series.get("widths")
+    bottoms = series.get("bottoms")
+    if bottoms is not None:
+        bottoms = np.array([v if v is not None else 0.0 for v in bottoms])
+
+    # facecolors: single string or list
+    facecolors = series.get("facecolors", "tab:blue")
+
+    kwargs: dict = {
+        "label":     series.get("label") or "",
+        "color":     facecolors,
+        "edgecolor": series.get("edgecolor", "none"),
+        "linewidth": series.get("linewidth", 1.0),
+        "visible":   series.get("visible", True),
+        "align":     "edge",  # lefts are left edges, consistent with matplotlib storage
+    }
+    if widths is not None:
+        kwargs["width"] = widths
+    if bottoms is not None:
+        kwargs["bottom"] = bottoms
+    alpha = series.get("alpha")
+    if alpha is not None:
+        kwargs["alpha"] = alpha
+
+    bars = ax.bar(lefts, heights, **kwargs)
+
+    # Restore per-bar colors if stored as a list
+    if isinstance(facecolors, list):
+        for patch, fc in zip(bars.patches, facecolors):
+            patch.set_facecolor(fc)
+
+
+def _restore_scatter(ax, series: dict):
+    x = np.array([v if v is not None else np.nan for v in series["x"]], dtype=float)
+    y = np.array([v if v is not None else np.nan for v in series["y"]], dtype=float)
+
+    kwargs: dict = {
+        "label":      series.get("label") or "",
+        "edgecolors": series.get("edgecolor", "none"),
+        "visible":    series.get("visible", True),
+    }
+
+    sizes = series.get("sizes")
+    if sizes is not None:
+        kwargs["s"] = sizes
+
+    fc = series.get("facecolor", "tab:blue")
+    if isinstance(fc, list):
+        kwargs["c"] = fc          # per-point colors as list of hex
+    else:
+        kwargs["c"] = fc
+
+    alpha = series.get("alpha")
+    if alpha is not None:
+        kwargs["alpha"] = alpha
+
+    ax.scatter(x, y, **kwargs)
 
 
 def _restore_modebar_state(fig, modebar: dict):

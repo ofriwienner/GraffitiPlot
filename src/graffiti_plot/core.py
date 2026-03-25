@@ -675,7 +675,8 @@ class PlotlyInteractivity:
 
         for leg_handle, orig_artist, label in zip(leg_handles, handles, labels):
             leg_handle.set_picker(True)
-            leg_handle.set_pickradius(_LEGEND_PICK_RADIUS_PX)
+            if hasattr(leg_handle, "set_pickradius"):  # Line2D only; Rectangle/PathCollection don't have it
+                leg_handle.set_pickradius(_LEGEND_PICK_RADIUS_PX)
             self._legend_mapping[leg_handle] = (orig_artist, label)
 
         self._pick_cids.append(self.fig.canvas.mpl_connect('pick_event', self._on_pick))
