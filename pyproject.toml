@@ -32,6 +32,9 @@ dependencies = [
     "scipy>=1.7",
 ]
 
+[project.scripts]
+gfp-open = "graffiti_plot.viewer:main"
+
 [project.urls]
 Repository = "https://github.com/ofriwienner/graffiti-plot"
 Documentation = "https://github.com/ofriwienner/graffiti-plot#readme"
