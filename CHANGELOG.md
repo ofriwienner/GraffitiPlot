@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0] - 2026-04-03
+
+### Fixed
+- Hover tooltip now snaps vertically (same logic as cursor mode), preventing spurious tooltips when the pointer is near the data in X but far in Y
+- Zoom box snaps to full axis extent when the selection covers ≥85% of the axis width or height (Plotly-style behavior), for easy single-axis zoom
+- Corrected snap/ratio evaluation order so a tall narrow drag box is treated as an X-only zoom rather than a vertical zoom
+- Buttons are now hidden while a figure is being saved
+
+### Changed
+- Adjusted zoom aspect-ratio threshold for more intuitive horizontal/vertical zoom detection
+
 ## [0.2.0] - 2026-03-14
 
 ### Added
