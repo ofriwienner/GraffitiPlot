@@ -30,6 +30,12 @@ dependencies = [
     "numpy>=1.20",
     "customtkinter>=5.0",
     "scipy>=1.7",
+    # tkinter (stdlib _tkinter + Tcl/Tk) is required by customtkinter and TkAgg; not on PyPI.
+    # If you see "No module named '_tkinter'", install Tcl/Tk for your Python, e.g.:
+    #   Debian/Ubuntu: sudo apt install python3-tk
+    #   Fedora: sudo dnf install python3-tkinter
+    #   macOS (Homebrew): brew install python-tk
+    #   Windows: reinstall python.org build with "tcl/tk and IDLE" enabled.
 ]
 
 [project.urls]

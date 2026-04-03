@@ -6,8 +6,23 @@ Interactive matplotlib figures: zoom, pan, curve fitting, SI units, and more.
 
 ## Install
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do not have it yet.
+
+### Tcl/Tk (required for the GUI)
+
+`graffiti-plot` uses **tkinter** (via `customtkinter` and matplotlib’s Tk backends). That needs Tcl/Tk to be available for your Python interpreter. Pip cannot install it; use your OS or Python installer.
+
+- **Debian / Ubuntu:** `sudo apt install python3-tk`
+- **Fedora:** `sudo dnf install python3-tkinter`
+- **macOS (Homebrew):** `brew install python-tk` (use the Homebrew Python that matches this install, or ensure your interpreter can see Tcl/Tk)
+- **Windows:** When installing Python from [python.org](https://www.python.org/downloads/), enable **“tcl/tk and IDLE”** (or run the installer’s *Modify* step and add that component)
+
+If you see `No module named '_tkinter'`, Tcl/Tk is still missing for the Python you are using.
+
+### From PyPI
+
 ```bash
-pip install graffiti-plot
+uv pip install graffiti-plot
 ```
 
 ## Usage
@@ -39,6 +54,10 @@ plt.show()
 
 ## Development
 
+From the repository root, with Tcl/Tk installed for your Python (see above):
+
 ```bash
-pip install -e .
+uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install -e .
 ```
